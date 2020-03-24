@@ -1,4 +1,6 @@
-hcsp Application
+HANA Cloud Schema Plan Application
+
+![SAP HANA Cloud Getting Started](/images/137441E1-671B-4D44-B371-BC765CBA5D22.png)
 
 Build Command:
 ```
