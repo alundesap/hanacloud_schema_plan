@@ -1,4 +1,4 @@
-###HANA Cloud Schema Plan Application
+### HANA Cloud Schema Plan Application
 
 If you don't have one already, create a SAP HANA Cloud Instance following this section of the documentation and then return to this README.md.
 
@@ -17,6 +17,8 @@ cf services | grep hana-cloud
 ```
 **<hana_cloud_name>**    hana-cloud        hana                                    create succeeded
 
+
+Now that we have the hana cloud instance name, we need to find it's guid.
 ```
 cf service <hana_cloud_name> --guid
 ```
@@ -64,17 +66,17 @@ The details of host, port, schema, user, and password as well as certificate are
         )
 ```
 
-###Build Command:
+### Build Command:
 ```
 cd hanacloud_schema_plan ; mkdir -p mta_archives ; mbt build -p=cf -t=mta_archives --mtar=hanacloud_schema_plan.mtar
 ```
 
-###Deploy Command:
+### Deploy Command:
 ```
 cf deploy mta_archives/hanacloud_schema_plan.mtar -f
 ```
 
-###Undeploy Command:
+### Undeploy Command:
 ```
 cf undeploy hcsp -f --delete-services
 ```
