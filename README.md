@@ -30,12 +30,12 @@ cf service <hana_cloud_name> --guid
 
 Now create a HANA service instance with plan "schema" that will provide the binding a future application can use to connect to the HANA Cloud instance.
 
-Here we will use the same name as would be created if you deploy this sample application( HCSP_SCH). 
+Here we will use the same name as would be created if you deployed this sample application(HCSP_SCH). 
 
 > Note: the "schema" property is optional.  If you remove it, the system will create a uniquely named schema for you.
 
 ```
-cf create-service hana schema  HCSP_SCH -c '{"schema": " HCSP_DB", "database_id": "**<hana_cloud_guid>**"}'
+cf create-service hana schema  HCSP_SCH -c '{"schema": " HCSP_DB", "database_id": "<hana_cloud_guid>"}'
 ```
 
 > Note: The creation is done in the background.  You can use "cf s" to check on its progress.
