@@ -65,12 +65,16 @@ def attach(port, host):
 # If there is no path then just return Hello World and this module's instance number
 # Requests passed through the app-router will never hit this route.
 @app.route('/')
+@app.route('/python/')
 def hello_world():
     output = '<strong>Hello World! I am instance ' + str(os.getenv("CF_INSTANCE_INDEX", 0)) + '</strong> Try these links.</br>\n'
-    output += '<a href="/env">/env</a><br />\n'
-    output += '<a href="/python/links">/python/links</a><br />\n'
+    output += '<a href="/python/env">/python/env</a><br />\n'
     output += '<a href="/python/test">/python/test</a><br />\n'
-    output += '<a href="/python/db_only">/python/db_only</a><br />\n'
+    output += '<a href="/python/create_table">/python/create_table</a><br />\n'
+    output += '<a href="/python/insert_data">/python/insert_data</a><br />\n'
+    output += '<a href="/python/select_data">/python/select_data</a><br />\n'
+    output += '<a href="/python/delete_data">/python/delete_data</a><br />\n'
+    output += '<a href="/python/drop_table">/python/drop_table</a><br />\n'
 
     return output
     
@@ -80,6 +84,7 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'),'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/env')
+@app.route('/python/env')
 def dump_env():
     output = '\n Key Environment variables... \n'
     output += 'PYTHONHOME: ' + str(os.getenv("PYTHONHOME", 0)) + '\n'
@@ -90,28 +95,6 @@ def dump_env():
     output += 'user: ' + hana.credentials['user'] + '\n'
     output += 'pass: ' + hana.credentials['password'] + '\n'
     output += '\n'
-    return output
-
-# Coming through the app-router
-@app.route('/python/links')
-def python_links():
-    output = '<strong>Hello World!!! I am instance ' + str(os.getenv("CF_INSTANCE_INDEX", 0)) + '</strong> Try these links.</br>\n'
-    output += '<a href="/python/test">/python/test</a><br />\n'
-    output += '<a href="/python/db_only">/python/db_only</a><br />\n'
-    output += '<a href="/auth_python/db_valid">/auth_python/db_valid</a><br />\n'
-
-    output += '<br />\n'
-    output += 'In a console on your workstation running eclipse, establish a reverse tunnel so that the app can reach back to the debug server.<br />\n'
-    output += '<pre>cf ssh-code ; ssh -nNT -p 2222 cf:ece6713d-3637-4709-a92a-2f3894a769a1/0@ssh.cf.us10.hana.ondemand.com -R 5678:localhost:5678</pre><br />\n'
-    output += 'In a Eclipse, start the Python Debugging Server.<br />\n'
-    output += '<pre>Pydev->Start Debug Server</pre><br />\n'
-
-    output += '<ol>\n'
-    output += '<li><a href="/python/set_env?PATHS_FROM_ECLIPSE_TO_PYTHON=[[%22/Users/i830671/git/mta_cfs_boost/python%22,%22/home/vcap/app%22]]">/python/set_env</a></li>\n'
-    output += '<li><a href="/python/env">/python/env</a> + test breakpoints</li>\n'
-    output += '<li><a href="/python/attach">/python/attach</a></li>\n'
-    output += '</ol>\n'
-
     return output
 
 # If there is a request for a python/test, return Testing message and module's instance number
@@ -187,17 +170,31 @@ def do_attach():
     output += '\n</pre>\n'
     return output
 
-# If there is a request for a python/test2, return Testing message and then check JWT and connect to the data service and retrieve some data
-@app.route('/python/db_only')
-def unauth_db_only():
-    output = 'Python UnAuthorized DB Only. \n'
-    #Enable to trigger debugging
-    os.environ["PATHS_FROM_ECLIPSE_TO_PYTHON"] = "[['/Users/i830671/git/mta_python_dev_env/python','/home/vcap/app']]"
+@app.route('/python/create_table')
+def create_table():
+    output = 'Python Authorized DB Validated Request. \n'
     output += '\n'
     output += 'Receiving module should check that it came from our approuter and verify or abort if otherwise.\n'
     output += '\n'
     svcs_json = str(os.getenv("VCAP_SERVICES", 0))
     svcs = json.loads(svcs_json)
+
+    # Verify the JWT before proceeding. or refuse to process the request.
+    # https://jwt.io/ JWT Debugger Tool and libs for all languages
+    # https://github.com/jpadilla/pyjwt/
+    # https://github.com/davedoesdev/python-jwt
+
+    uaa_service = env.get_service(label='xsuaa').credentials
+    access_token = request.headers.get('authorization')[7:]
+
+    security_context = xssec.create_security_context(access_token, uaa_service)
+    isAuthorized = security_context.check_scope('openid')
+    if not isAuthorized:
+        abort(403)
+
+    output += 'get_logon_name: ' + security_context.get_logon_name() + '\n'
+    output += 'get_email: ' + security_context.get_email() + '\n'
+    output += 'get_identity_zone: ' + security_context.get_identity_zone() + '\n'
 
     schema = hana.credentials['schema']
     host = hana.credentials['host']
@@ -205,18 +202,19 @@ def unauth_db_only():
     user = hana.credentials['user']
     password = hana.credentials['password']
 
-    # The certificate will available for HANA service instances that require an encrypted connection
-    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
-    if 'certificate' in hana.credentials:
-        haascert = hana.credentials['certificate']
-    
+
     output += 'schema: ' + schema + '\n'
     output += 'host: ' + host + '\n'
     output += 'port: ' + port + '\n'
     output += 'user: ' + user + '\n'
     output += 'pass: ' + password + '\n'
 
-#    # Connect to the python HANA DB driver using the connection info
+    # The certificate will available for HANA service instances that require an encrypted connection
+    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
+    if 'certificate' in hana.credentials:
+        haascert = hana.credentials['certificate']
+    
+    # Connect to the python HANA DB driver using the connection info
 # User for HANA as a Service instances
     if 'certificate' in hana.credentials:
         connection = dbapi.connect(
@@ -238,30 +236,18 @@ def unauth_db_only():
             password=password,
             currentSchema=schema
         )
- 
 
-#    # Prep a cursor for SQL execution
     cursor = connection.cursor()
-
-#    # Form an SQL statement to retrieve some data
-    cursor.execute('SELECT "tempId", "tempVal", "ts", "created" FROM "sensors.temp"')
-
-#    # Execute the SQL and capture the result set
-    sensor_vals = cursor.fetchall()
-#
-#    # Loop through the result set and output
-    for sensor_val in sensor_vals:
-        output += 'sensor_val: ' + str(sensor_val[1]) + ' at: ' + str(sensor_val[2]) + '\n'
-#
-#    # Close the DB connection
+    cursor.execute('CREATE COLUMN TABLE city (zip CHAR(5) PRIMARY KEY, name CHAR (30) NOT NULL, state CHAR(2) NOT NULL)')
     connection.close()
-#
+    
+    output += 'TABLE city CREATED.\n'
+
     # Return the results
     return output
 
-# If there is a request for a python/test2, return Testing message and then check JWT and connect to the data service and retrieve some data
-@app.route('/auth_python/db_valid')
-def auth_db_valid():
+@app.route('/python/drop_table')
+def drop_table():
     output = 'Python Authorized DB Validated Request. \n'
     output += '\n'
     output += 'Receiving module should check that it came from our approuter and verify or abort if otherwise.\n'
@@ -274,57 +260,81 @@ def auth_db_valid():
     # https://github.com/jpadilla/pyjwt/
     # https://github.com/davedoesdev/python-jwt
 
-    # From the vcap_services environment variable pull out these things for later.
-#    vkey = svcs["xsuaa"][0]["credentials"]["verificationkey"]
-#    secret = svcs["xsuaa"][0]["credentials"]["clientsecret"]
-#
-#    #output += 'vkey: ' + vkey + '\n'
-#    #output += 'secret: ' + secret + '\n'
-#
-#    #jwt.decode(encoded, verify=False)
-#    req_host = request.headers.get('Host')
-#    req_auth = request.headers.get('Authorization')
-#
-#    #output += 'req_host: ' + req_host + '\n'
-#    #output += 'req_auth: ' + req_auth + '\n'
-#
-#    #import jwt
-#    #output += 'req_auth = ' + req_auth + '\n'
-#
-#    #Check to see if the request has an authorization header and if it starts with "Bearer "
-#    if req_auth:
-#        if req_auth.startswith("Bearer "):
-#            output += 'JWT Authorization is of type Bearer! \n'
-#        else:
-#            output += 'JWT Authorization is not of type Bearer! \n'
-#    else:
-#        output += 'Authorization header is missing! \n'
-#
-#    output += '\n'
-#
-#    #If it looks like the right type of authoriztion header, grab it's contents.
-#    if req_auth:
-#        jwtoken = req_auth[7:]
-#
-#        # The PKEY in the env has the \n stripped out and the importKey expects them!
-#        pub_pem = "-----BEGIN PUBLIC KEY-----\n" + vkey[26:-24] + "\n-----END PUBLIC KEY-----\n"
-#        #output += 'pub_pem = ' + pub_pem + '\n'
-#
-#	# Manipulate the pem key so that we can verify it.
-#        pub_key = RSA.importKey(pub_pem)
-#        (header, claim, sig) = jwtoken.split('.')
-#        header = jws.utils.from_base64(header)
-#        claim = jws.utils.from_base64(claim)
-#        if jws.verify(header, claim, sig, pub_key, is_json=True):
-#            output += 'JWT is Verified! \n'
-#        else:
-#            output += 'JWT FAILED Verification! \n'
-#
-#    else:
-#    else:
-#        output += 'Normally we would only do work if JWT is verified.\n'
-#
-#    output += '\n'
+    uaa_service = env.get_service(label='xsuaa').credentials
+    access_token = request.headers.get('authorization')[7:]
+
+    security_context = xssec.create_security_context(access_token, uaa_service)
+    isAuthorized = security_context.check_scope('openid')
+    if not isAuthorized:
+        abort(403)
+
+    output += 'get_logon_name: ' + security_context.get_logon_name() + '\n'
+    output += 'get_email: ' + security_context.get_email() + '\n'
+    output += 'get_identity_zone: ' + security_context.get_identity_zone() + '\n'
+
+    schema = hana.credentials['schema']
+    host = hana.credentials['host']
+    port = hana.credentials['port']
+    user = hana.credentials['user']
+    password = hana.credentials['password']
+
+
+    output += 'schema: ' + schema + '\n'
+    output += 'host: ' + host + '\n'
+    output += 'port: ' + port + '\n'
+    output += 'user: ' + user + '\n'
+    output += 'pass: ' + password + '\n'
+
+    # The certificate will available for HANA service instances that require an encrypted connection
+    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
+    if 'certificate' in hana.credentials:
+        haascert = hana.credentials['certificate']
+    
+    # Connect to the python HANA DB driver using the connection info
+# User for HANA as a Service instances
+    if 'certificate' in hana.credentials:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema,
+            encrypt="true",
+            sslValidateCertificate="true",
+            sslCryptoProvider="openssl",
+            sslTrustStore=haascert
+        )
+    else:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema
+        )
+
+    cursor = connection.cursor()
+    cursor.execute('DROP TABLE city')
+    connection.close()
+
+    output += 'TABLE city DROPPED.\n'
+
+    # Return the results
+    return output
+
+@app.route('/python/insert_data')
+def insert_data():
+    output = 'Python Authorized DB Validated Request. \n'
+    output += '\n'
+    output += 'Receiving module should check that it came from our approuter and verify or abort if otherwise.\n'
+    output += '\n'
+    svcs_json = str(os.getenv("VCAP_SERVICES", 0))
+    svcs = json.loads(svcs_json)
+
+    # Verify the JWT before proceeding. or refuse to process the request.
+    # https://jwt.io/ JWT Debugger Tool and libs for all languages
+    # https://github.com/jpadilla/pyjwt/
+    # https://github.com/davedoesdev/python-jwt
 
     uaa_service = env.get_service(label='xsuaa').credentials
     access_token = request.headers.get('authorization')[7:]
@@ -335,33 +345,15 @@ def auth_db_valid():
         abort(403)
 
     output += 'get_logon_name: ' + security_context.get_logon_name() + '\n'
-#    output += 'get_given_name: ' + security_context.get_given_name() + '\n'
-#    output += 'get_family_name: ' + security_context.get_family_name() + '\n'
     output += 'get_email: ' + security_context.get_email() + '\n'
-#    output += 'get_subdomain: ' + security_context.get_subdomain() + '\n'
-#    output += 'get_clientid: ' + security_context.get_clientid() + '\n'
     output += 'get_identity_zone: ' + security_context.get_identity_zone() + '\n'
-#    output += 'get_grant_type: ' + security_context.get_grant_type() + '\n'
-    
-#
-#    # This module should only proced with any further execution if the JWT has been verified.
-#    # In this example we blindly continue, but this is not the best practice.
-#
-#    # Grab information from the vcap_services about the database connection
-#    schema = svcs["hana"][0]["credentials"]["schema"]
-#    user = svcs["hana"][0]["credentials"]["user"]
-#    password = svcs["hana"][0]["credentials"]["password"]
-#    conn_str = svcs["hana"][0]["credentials"]["url"]
-#    host = svcs["hana"][0]["credentials"]["host"]
-#    port = svcs["hana"][0]["credentials"]["port"]
-#    driver = svcs["hana"][0]["credentials"]["driver"]
-#
+
     schema = hana.credentials['schema']
     host = hana.credentials['host']
     port = hana.credentials['port']
     user = hana.credentials['user']
     password = hana.credentials['password']
-    
+
 
     output += 'schema: ' + schema + '\n'
     output += 'host: ' + host + '\n'
@@ -369,35 +361,208 @@ def auth_db_valid():
     output += 'user: ' + user + '\n'
     output += 'pass: ' + password + '\n'
 
-#    output += 'schema: ' + schema + '\n'
-#    output += 'user: ' + user + '\n'
-#    output += 'password: ' + password + '\n'
-#    output += 'conn_str: ' + conn_str + '\n'
-#    output += 'host: ' + host + '\n'
-#    output += 'port: ' + port + '\n'
-#    output += 'driver: ' + driver + '\n'
-#
-#    output += '\n'
-#    # Connect to the python HANA DB driver using the connection info
-#    connection = pyhdb.connect(host,int(port),user,password)
-    connection = dbapi.connect(host,int(port),user,password)
-#    connection = dbapi.connect(addresst=host,port=int(port),user=user,password=password)
-#    # Prep a cursor for SQL execution
+    # The certificate will available for HANA service instances that require an encrypted connection
+    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
+    if 'certificate' in hana.credentials:
+        haascert = hana.credentials['certificate']
+    
+    # Connect to the python HANA DB driver using the connection info
+# User for HANA as a Service instances
+    if 'certificate' in hana.credentials:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema,
+            encrypt="true",
+            sslValidateCertificate="true",
+            sslCryptoProvider="openssl",
+            sslTrustStore=haascert
+        )
+    else:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema
+        )
+
     cursor = connection.cursor()
-#    # Form an SQL statement to retrieve some data
-    cursor.execute('SELECT "tempId", "tempVal", "ts", "created" FROM "' + schema + '"."sensors.temp"')
-#    # Execute the SQL and capture the result set
-    sensor_vals = cursor.fetchall()
-#
-#    # Loop through the result set and output
-    for sensor_val in sensor_vals:
-        output += 'sensor_val: ' + str(sensor_val[1]) + ' at: ' + str(sensor_val[2]) + '\n'
-#
-#    # Close the DB connection
+    cursor.execute("INSERT INTO city VALUES ('12203','Albany','NY')")
+    cursor.execute("INSERT INTO city VALUES ('60601','Chicago','IL')")
+    cursor.execute("INSERT INTO city VALUES ('60615','Chicago','IL')")
     connection.close()
-#
+
+    output += '3 rows of data inserted into TABLE city.\n'
+
     # Return the results
     return output
+
+@app.route('/python/select_data')
+def select_data():
+    output = 'Python Authorized DB Validated Request. \n'
+    output += '\n'
+    output += 'Receiving module should check that it came from our approuter and verify or abort if otherwise.\n'
+    output += '\n'
+    svcs_json = str(os.getenv("VCAP_SERVICES", 0))
+    svcs = json.loads(svcs_json)
+
+    # Verify the JWT before proceeding. or refuse to process the request.
+    # https://jwt.io/ JWT Debugger Tool and libs for all languages
+    # https://github.com/jpadilla/pyjwt/
+    # https://github.com/davedoesdev/python-jwt
+
+    uaa_service = env.get_service(label='xsuaa').credentials
+    access_token = request.headers.get('authorization')[7:]
+
+    security_context = xssec.create_security_context(access_token, uaa_service)
+    isAuthorized = security_context.check_scope('openid')
+    if not isAuthorized:
+        abort(403)
+
+    output += 'get_logon_name: ' + security_context.get_logon_name() + '\n'
+    output += 'get_email: ' + security_context.get_email() + '\n'
+    output += 'get_identity_zone: ' + security_context.get_identity_zone() + '\n'
+
+    schema = hana.credentials['schema']
+    host = hana.credentials['host']
+    port = hana.credentials['port']
+    user = hana.credentials['user']
+    password = hana.credentials['password']
+
+
+    output += 'schema: ' + schema + '\n'
+    output += 'host: ' + host + '\n'
+    output += 'port: ' + port + '\n'
+    output += 'user: ' + user + '\n'
+    output += 'pass: ' + password + '\n'
+
+    # The certificate will available for HANA service instances that require an encrypted connection
+    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
+    if 'certificate' in hana.credentials:
+        haascert = hana.credentials['certificate']
+    
+    # Connect to the python HANA DB driver using the connection info
+# User for HANA as a Service instances
+    if 'certificate' in hana.credentials:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema,
+            encrypt="true",
+            sslValidateCertificate="true",
+            sslCryptoProvider="openssl",
+            sslTrustStore=haascert
+        )
+    else:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema
+        )
+
+    cursor = connection.cursor()
+
+    # Form an SQL statement to retrieve some data
+    cursor.execute('SELECT * FROM city')
+
+    # Execute the SQL and capture the result set
+    city_vals = cursor.fetchall()
+
+    # Loop through the result set and output
+    for city_val in city_vals:
+        output += 'zip: ' + str(city_val[0]) + ' name: ' + str(city_val[1]) + ' state: ' + str(city_val[2]) + '\n'
+
+    # Close the DB connection
+    connection.close()
+
+    output += 'All data selected from TABLE city.\n'
+
+    # Return the results
+    return output
+
+@app.route('/python/delete_data')
+def delete_data():
+    output = 'Python Authorized DB Validated Request. \n'
+    output += '\n'
+    output += 'Receiving module should check that it came from our approuter and verify or abort if otherwise.\n'
+    output += '\n'
+    svcs_json = str(os.getenv("VCAP_SERVICES", 0))
+    svcs = json.loads(svcs_json)
+
+    # Verify the JWT before proceeding. or refuse to process the request.
+    # https://jwt.io/ JWT Debugger Tool and libs for all languages
+    # https://github.com/jpadilla/pyjwt/
+    # https://github.com/davedoesdev/python-jwt
+
+    uaa_service = env.get_service(label='xsuaa').credentials
+    access_token = request.headers.get('authorization')[7:]
+
+    security_context = xssec.create_security_context(access_token, uaa_service)
+    isAuthorized = security_context.check_scope('openid')
+    if not isAuthorized:
+        abort(403)
+
+    output += 'get_logon_name: ' + security_context.get_logon_name() + '\n'
+    output += 'get_email: ' + security_context.get_email() + '\n'
+    output += 'get_identity_zone: ' + security_context.get_identity_zone() + '\n'
+
+    schema = hana.credentials['schema']
+    host = hana.credentials['host']
+    port = hana.credentials['port']
+    user = hana.credentials['user']
+    password = hana.credentials['password']
+
+
+    output += 'schema: ' + schema + '\n'
+    output += 'host: ' + host + '\n'
+    output += 'port: ' + port + '\n'
+    output += 'user: ' + user + '\n'
+    output += 'pass: ' + password + '\n'
+
+    # The certificate will available for HANA service instances that require an encrypted connection
+    # Note: This was tested to work with python hdbcli-2.3.112 tar.gz package not hdbcli-2.3.14 provided in XS_PYTHON00_0-70003433.ZIP  
+    if 'certificate' in hana.credentials:
+        haascert = hana.credentials['certificate']
+    
+    # Connect to the python HANA DB driver using the connection info
+# User for HANA as a Service instances
+    if 'certificate' in hana.credentials:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema,
+            encrypt="true",
+            sslValidateCertificate="true",
+            sslCryptoProvider="openssl",
+            sslTrustStore=haascert
+        )
+    else:
+        connection = dbapi.connect(
+            address=host,
+            port=int(port),
+            user=user,
+            password=password,
+            currentSchema=schema
+        )
+
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM city")
+    connection.close()
+
+    output += 'All rows of data in TABLE city deleted.\n'
+
+    # Return the results
+    return output
+
 
 if __name__ == '__main__':
     print(platform.python_version())

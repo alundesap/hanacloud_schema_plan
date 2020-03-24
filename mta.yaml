@@ -7,6 +7,7 @@ modules:
 
 ### New Modules Here ###
 
+# cf push hcsp-pyt -p python -n a-team-dbaas-dev-hcsp-pyt -k 512M -m 256M
  - name: hcsp-pyt
    type: python
    path: python
@@ -48,7 +49,7 @@ resources:
    parameters:
       service-name: HCSP_SCH
       config:
-         database_id: 197ee647-a43c-49f5-8ea6-5561a802ed6f
+         database_id: 9bf5f11a-394c-459e-b251-ff99ea73a3dc
          schema: HCSP_DB
 
  - name: hcsp-uaa
