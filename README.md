@@ -4,9 +4,13 @@ If you don't have one already, create a SAP HANA Cloud Instance following this s
 
 https://help.sap.com/viewer/db19c7071e5f4101837e23f06e576495/cloud/en-US/784a1dbb421a4da29fb1e3bdf5f198ec.html
 
+> Note: Be sure that your account has sufficient quota of **SAP HANA CLoud** as well as **SAP HANA Schemas & HDI Containers** and that the Entitlements: Subaccount Assignments of the global account has assigned **SAP HANA Schemas & HDI Containers** of type schema to the subaccount where your HANA Cloud instance resides.
+
 ![SAP HANA Cloud Getting Started](/images/137441E1-671B-4D44-B371-BC765CBA5D22.png)
 
-Once your HANA Cloud Instance has been created, you will need to get its internal identifier.  This can be found on the SAP HANA Cloud Instances panel as the first part of the Endpoint.  Note this may not always be the case and you should verify it by using the cf cli tool as described below.
+Once your HANA Cloud Instance has been created, you will need to get its internal identifier.  This can be found on the SAP HANA Cloud Instances panel as the first part of the Endpoint.  
+
+> Note this may not always be the case and you should verify it by using the cf cli tool as described below.
 
 ![SAP Cloud Platform Cockpit](/images/64F1AF48-4038-450F-BD09-83A577B3C872.png)
 
