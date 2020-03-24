@@ -49,7 +49,7 @@ resources:
    parameters:
       service-name: HCSP_SCH
       config:
-         database_id: 9bf5f11a-394c-459e-b251-ff99ea73a3dc
+         database_id: <hana_cloud_guid>
          schema: HCSP_DB
 
  - name: hcsp-uaa
